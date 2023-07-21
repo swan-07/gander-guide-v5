@@ -20,8 +20,11 @@ class MiDaS:
         self.midas.to(self.device)
         self.midas.eval()
         self.midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms")
-        self.yolo_model = YOLO('coco-model.pt')
-        
+        # self.yolo_model = YOLO('coco-model.pt')
+        import os
+        file_path = os.path.join(os.path.dirname(__file__), 'coco-model.pt')
+        self.yolo_model = YOLO(file_path)
+
         self.FOV = 70.42 # deg
         self.min_angle_for_prompt = 10 # deg
         self.min_danger_for_problem = 0.4 # arbitrary
@@ -37,12 +40,12 @@ class MiDaS:
         for i in range(self.height):
             for j in range(self.width):
                 self.depth_filter[i, j] = np.exp( -0.5 * (((j - (self.width//2))) / (self.width / 6)) ** 2)
-        
+
         if self.model_type[self.model_index] == "DPT_Large" or self.model_type[self.model_index] == "DPT_Hybrid":
-            self.transform = self.midas_transforms.dpt_transform 
+            self.transform = self.midas_transforms.dpt_transform
         else:
             self.transform = self.midas_transforms.small_transform
-        
+
         self.identifier = fd.FurnitureIdentifier()
 
 
@@ -65,7 +68,7 @@ class MiDaS:
         results = self.yolo_model.predict(image)
         best_furniture = "Object"
         best_confidence = -99999
-        
+
         for result in results:
             boxes = result.boxes.xyxy
             labels = result.boxes.cls
@@ -84,7 +87,7 @@ class MiDaS:
         cv2.circle(self.website_image, pos, 8, (0, 0, 0), 2) # draw a circle to show where furniture is being checked
 
         self.current_warning = f"Saying {something}!" if pos is None else f"{self.find_furniture(pos[0], pos[1], pic)} {something}" # placeholder for text to speech
-        print("PLACEHOLDER SAY() CALLED: ", self.current_warning) 
+        print("PLACEHOLDER SAY() CALLED: ", self.current_warning)
 
     def predict(self, img):
         input_batch = self.transform(img).to(self.device)
@@ -101,7 +104,7 @@ class MiDaS:
         output = prediction.cpu().numpy()
         #print("Time elapsed: ", time.time() - start)
         return output
-    
+
     # seperate methods to normalize and denormalize depth maps
     def normalize(self, img, scale_factor=1):
         # travis webcam is 1280x720
@@ -109,12 +112,12 @@ class MiDaS:
 
         img /= maximum
         return img * scale_factor
-        
+
     def filter(self, img, colorful_image, scale_factor=255, vibrate = "Yes"): # vibrate can be "Yes", "No", or "Website" (web means update both)
         output = img * scale_factor
         self.website_image = output
         point = None
-        if vibrate == "No": 
+        if vibrate == "No":
             self.current_warning = None
         # check for complete obstructedness
         if np.mean(output) > (self.min_danger_for_complete_cover*scale_factor):
@@ -135,25 +138,25 @@ class MiDaS:
 
             # Calculate the column-wise sums
             column_sums = np.mean(output * self.depth_filter, axis=0)
-            
+
             if max(column_sums) < (self.min_danger_for_problem * scale_factor):
                 # blur horizontally to mitigate noise
                 blurred = cv2.blur(output, (10, 1))
-                
-                # Find the most free path with the minimum weighted average value 
+
+                # Find the most free path with the minimum weighted average value
                 weights = np.linspace(1, 7, self.height).reshape((self.height, 1))
                 candidate = np.argmin(np.mean(blurred * weights, axis=0))
-                
+
                 # average from a queue of length 3 with lower rows weighted higher
                 self.bestXs.append(candidate)
                 bestX = round(sum(self.bestXs)/3)
                 self.bestXs.pop(0)
-                
-                # find the angle to correct path and notify 
+
+                # find the angle to correct path and notify
                 angle = int(self.FOV * bestX / self.width - self.FOV / 2)
-            
+
                 if vibrate != "No":
-                    if angle**2 < self.min_angle_for_prompt**2: 
+                    if angle**2 < self.min_angle_for_prompt**2:
                         self.amplitude = 0
                         self.period = 0
                     else:
@@ -197,7 +200,7 @@ class MiDaS:
 
         if vibrate != "Yes":
             self.states.pop(0)
-    
+
 if __name__ == "__main__":
     midas = MiDaS()
     img = cv2.imread(filename)
