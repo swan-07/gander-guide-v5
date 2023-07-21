@@ -147,3 +147,7 @@ def gen_frames():
             except Exception as e:
                 print("exception thrown when trying to encode image")
                 pass
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
