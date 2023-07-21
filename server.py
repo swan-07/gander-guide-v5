@@ -7,6 +7,7 @@ import midas_processing as mp
 import base64
 import random
 import torch
+from flask_socketio import SocketIO, emit
 
 def get_base_url(port:int) -> str:
     '''
@@ -42,8 +43,10 @@ vision_mode=1 # 1 is normal, 2 is computer vision, 3 is rainbows and unicorns
 port = 5000
 base_url = get_base_url(port)
 
+
 # Flask App
 app = Flask(__name__)
+socketio = SocketIO(app)
 # OpenCV Webcam
 cap = cv2.VideoCapture(0)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
@@ -82,13 +85,32 @@ def index():
 def video_feed():
     return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
+# Rest of your backend code...
+
+@app.route(f"{base_url}/process_frame", methods=['POST'])
+def process_frame():
+    global vision_mode, tracker
+
+    base64_frame = request.form.get('frame', None)
+
+    if base64_frame is not None:
+        # Decode the base64 frame to OpenCV format
+        decoded_frame = base64.b64decode(base64_frame.split(',')[1])
+        nparr = np.frombuffer(decoded_frame, np.uint8)
+        image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        return {image}
+
+if __name__ == "__main__":
+    socketio.run(app, debug=True)
+
 def gen_frames():
     global computer_vision, cap, tracker
 
 
     while True:
         try:
-            success, image = cap.read()
+            # success, image = cap.read()
+            image = process_frame()
             
         except:
             print("Camera not found")

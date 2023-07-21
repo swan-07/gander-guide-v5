@@ -74,7 +74,8 @@
     
       <div class="video-container">
         <div id="message" class="message">Please turn on your webcam</div>
-        <img src="{{ url_for('video_feed') }}" width="60%">
+        <video id="video-stream" width="640" height="480" autoplay></video>
+        <!-- <img src="{{ url_for('video_feed') }}" width="60%"> -->
       </div>
 
       
@@ -190,8 +191,48 @@
     </script>
 
   
-  
-  
+<script>
+  const video = document.getElementById('video-stream');
+
+  // Capture video stream from the user's webcam
+  navigator.mediaDevices.getUserMedia({ video: true })
+    .then((stream) => {
+      video.srcObject = stream;
+    })
+    .catch((err) => {
+      console.error('Error accessing webcam:', err);
+    });
+
+  // Send video frames to the backend via AJAX
+  function sendVideoFrame() {
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const base64Data = canvas.toDataURL('image/jpeg');
+
+    $.ajax({
+      type: 'POST',
+      url: '{{ url_for("process_frame") }}',
+      data: { frame: base64Data },
+      success: function (response) {
+        // Process the response from the backend if needed
+        console.log('Received response from the backend:', response);
+      },
+      error: function (xhr, status, error) {
+        console.error('Error sending video frame to backend:', error);
+      },
+    });
+
+    // Continue sending frames at a regular interval (e.g., 100ms)
+    setTimeout(sendVideoFrame, 100);
+  }
+
+  // Start sending video frames to the backend
+  sendVideoFrame();
+</script>
   
   
   <footer>
